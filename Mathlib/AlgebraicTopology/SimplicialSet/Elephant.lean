@@ -3,15 +3,24 @@ import Mathlib.Util.Superscript
 
 namespace SSet.Truncated
 
-scoped macro:1000 (priority := high)
-  X:term " _[" n:term "]"t:subscript(term) : term =>
-    `(($X : SSet.Truncated $(⟨t.raw[0]⟩)).obj
-      (Opposite.op ⟨SimplexCategory.mk $n, by decide⟩))
+/-- Some quick attempts to prove that `[m]` is `n`-truncated (`m ≤ n`). -/
+macro "trunc" : tactic =>
+  `(tactic| first | decide | assumption | apply zero_le | apply le_rfl |
+    simp only [SimplexCategory.len_mk]; omega)
 
+/-- For `X : SSet.Truncated n` and `m ≤ n`, `X _[m]ₙ` is the type of
+`m`-simplices in `X`. -/
 scoped macro:1000 (priority := high)
-  X:term " _[" n:term "," p:term "]"t:subscript(term) : term =>
-    `(($X : SSet.Truncated $(⟨t.raw[0]⟩)).obj
-      (Opposite.op ⟨SimplexCategory.mk $n, $p⟩))
+  X:term " _[" m:term "]"n:subscript(term) : term =>
+  `(($X : SSet.Truncated $(⟨n.raw[0]⟩)).obj (Opposite.op ⟨SimplexCategory.mk $m,
+    by first | trunc | fail "Failed to prove SSet.Truncated property."⟩))
+
+/-- For `X : SSet.Truncated n` and `p : m ≤ n`, `X _[m, p]ₙ` is the type of
+`m`-simplices in `X`. -/
+scoped macro:1000 (priority := high)
+  X:term " _[" m:term "," p:term "]"n:subscript(term) : term =>
+    `(($X : SSet.Truncated $(⟨n.raw[0]⟩)).obj
+      (Opposite.op ⟨SimplexCategory.mk $m, $p⟩))
 
 end SSet.Truncated
 
@@ -72,7 +81,7 @@ abbrev Path : ℕ → Type u := trunc (by omega) |>.obj X |>.Path₁
 /-- The spine of an `n + 1`-simplex in an `n + 1`-truncated simplicial set `X`
 is the path of edges of length `n + 1` formed by traversing through its
 vertices in order. -/
-def spine (Δ : X _[n + 1, by rfl]ₙ₊₁) : Path X (n + 1) where
+def spine (Δ : X _[n + 1]ₙ₊₁) : Path X (n + 1) where
   vertex i := X.map (SimplexCategory.const [0] [n + 1] i).op Δ
   arrow i := X.map (SimplexCategory.mkOfSucc i).op Δ
   arrow_src i := by
@@ -85,7 +94,7 @@ def spine (Δ : X _[n + 1, by rfl]ₙ₊₁) : Path X (n + 1) where
 /-- An `n + 1`-truncated simplicial set satisfies the strict Segal condition
 if its `n + 1`-simplices are uniquely determined by their spine. -/
 class StrictSegal where
-  spineToSimplex : Path X (n + 1) → X _[n + 1, by rfl]ₙ₊₁
+  spineToSimplex : Path X (n + 1) → X _[n + 1]ₙ₊₁
   spine_spineToSimplex : X.spine ∘ spineToSimplex = id
   spineToSimplex_spine : spineToSimplex ∘ X.spine = id
 
