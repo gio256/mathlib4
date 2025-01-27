@@ -86,6 +86,48 @@ lemma map_interval (f : Path₁ X n) (σ : X ⟶ Y) (j l : ℕ) (h : j + l ≤ n
 
 end Path₁
 
+abbrev Path₀ (X : SSet.Truncated.{u} 0) (n : ℕ) := ∀ i : Fin (n + 1), X _[0]₀
+
+abbrev Path₀.vertex {X : SSet.Truncated.{u} 0} {n : ℕ} :
+    Path₀ X n → (i : Fin (n + 1)) → X _[0]₀ :=
+  id
+
+variable {n : ℕ}
+
+def Path (X : SSet.Truncated.{u} n) (m : ℕ) : Type u := by
+  induction n with
+  | zero => exact Path₀ X m
+  | succ n => exact Path₁ ((trunc (n + 1) 1).obj X) m
+
+namespace Path
+
+variable (X : SSet.Truncated.{u} n)
+
+def Vertex : Type u :=
+  match n with
+  | .zero => X _[0]₀
+  | .succ n => ((trunc (n + 1) 1).obj X) _[0]₁
+
+def Arrow : Type u :=
+  match n with
+  | .zero => ULift Unit
+  | .succ n => ((trunc (n + 1) 1).obj X) _[1]₁
+
+variable {X} {m : ℕ} (f : Path X m)
+
+def vertex (i : Fin (n + 1)) : Vertex X := by
+  induction n with
+  | zero => exact Path₀.vertex f i
+  | succ n => exact Path₁.vertex f i
+
+def arrow (i : Fin m) : Arrow X := by
+  induction n with
+  | zero => exact ULift.pure ()
+  | succ n => exact Path₁.arrow f i
+
+end Path
+
+
 variable {n : ℕ} (X : SSet.Truncated.{u} (n + 1))
 
 /-- A path of length `m` in an `n + 1`-truncated simplicial set `X` is defined
