@@ -263,10 +263,15 @@ lemma trunc_eq (n m : ℕ) (h : m ≤ n) : (sx.1 n).trunc m h = sx.1 m := by
 /-- The inverse to `X.spine`. -/
 def spineToSimplex (f : Path X n) : X _[n] := by
   induction n with
-  | zero => exact f.vertex 0
-    /- simp [Path] at f -/
-    /- #check sx.1 0 |>.spineToSimplex -/
-  | succ n => exact sx.1 (n + 1) |>.spineToSimplex f
+  | zero => 
+    /- exact f.vertex 0 -/
+    simp [Path] at f
+    exact (↑f)
+    #check Truncated.Path.baz
+    #check sx.1 0 |>.spineToSimplex (↑f)
+  | succ n => 
+    simp [Path] at f
+    exact sx.1 (n + 1) |>.spineToSimplex f
   /- exact sx.1 n |>.spineToSimplex f -/
 
 /-- `spineToSimplex` is a right inverse to `X.spine`. -/
