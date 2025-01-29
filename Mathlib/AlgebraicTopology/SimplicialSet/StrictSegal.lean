@@ -35,6 +35,12 @@ namespace Truncated
 
 open SimplexCategory.Truncated Truncated.Hom SimplicialObject.Truncated
 
+/-/1-- The data of an inverse to `X.spine n` for `X` an `n`-truncated simplicial set. -1/ -/
+/-private structure StrictSegalAux0 {n : ℕ} (X : SSet.Truncated.{u} n) where -/
+/-  spineToSimplex : Path X n → X _[n]ₙ -/
+/-  spine_spineToSimplex : spine X n ∘ spineToSimplex = id -/
+/-  spineToSimplex_spine : spineToSimplex ∘ spine X n = id -/
+
 /-- The data of an inverse to `X.spine n` for `X` an `n`-truncated simplicial set. -/
 private structure StrictSegalAux {n : ℕ} (X : SSet.Truncated.{u} n) where
   spineToSimplex : Path X n → X _[n]ₙ
@@ -260,57 +266,62 @@ lemma trunc_eq (n m : ℕ) (h : m ≤ n) : (sx.1 n).trunc m h = sx.1 m := by
       simp only [reduceDIte, heq, sx.2]
       exact ih (by omega)
 
+/- instance : Coe (Path X n) (((truncation n).obj X).Path n) where -/
+/-   coe f := -/
+/-     match n with -/
+/-     | .zero => f.toPath₀ -/
+/-     | .succ _ => f -/
+
+  /- X.Path n : Type u -/
+  /- ((truncation n).obj X).Path n : Type u -/
 /-- The inverse to `X.spine`. -/
-def spineToSimplex (f : Path X n) : X _[n] := by
-  induction n with
-  | zero => 
-    /- exact f.vertex 0 -/
-    simp [Path] at f
-    exact (↑f)
-    #check Truncated.Path.baz
-    #check sx.1 0 |>.spineToSimplex (↑f)
-  | succ n => 
-    simp [Path] at f
-    exact sx.1 (n + 1) |>.spineToSimplex f
-  /- exact sx.1 n |>.spineToSimplex f -/
+/- def spineToSimplex (f : Path X n) : X _[n] := sx.1 n |>.spineToSimplex f -/
+def spineToSimplex (f : Path X n) : X _[n] :=
+  match n with
+  | .zero => sx.1 0 |>.spineToSimplex f.toPath₀
+  | .succ n => sx.1 (n + 1) |>.spineToSimplex f
+  /- match n with -/
+  /- | .zero => f.vertex 0 -/
+  /- | .succ n => sx.1 (n + 1) |>.spineToSimplex f -/
 
 /-- `spineToSimplex` is a right inverse to `X.spine`. -/
-lemma spine_spineToSimplex : X.spine (n := n) ∘ sx.spineToSimplex = id :=
-  match n with
-  | .zero => by
+lemma spine_spineToSimplex : X.spine n ∘ sx.spineToSimplex = id := by
+  induction n with
+  | zero =>
     ext f j
-    · fin_cases j; rfl
+    · simp only [spine, spineToSimplex, Function.comp_apply, Fin.eq_zero,
+        Truncated.StrictSegal.spine_spineToSimplex_apply, Path.foo]
+      simp [Truncated.Path.vertex]
     · exact j.elim0
-  | .succ n => sx.1 (n + 1) |>.spine_spineToSimplex
+  | succ n => exact sx.1 (n + 1) |>.spine_spineToSimplex
 
 /-- `spineToSimplex` is a left inverse to `X.spine`. -/
 lemma spineToSimplex_spine : sx.spineToSimplex ∘ X.spine (n := n) = id :=
   match n with
   | .zero => by
+    ext Δ
     simp [spineToSimplex, spine]
-    ext x
-    exact sx.1 0 |>.spineToSimplex_spine_apply x
-    /- simp [spineToSimplex, spine] -/
   | .succ n => sx.1 (n + 1) |>.spineToSimplex_spine
 
 lemma spine_spineToSimplex_apply (f : Path X n) :
-    X.spine (sx.spineToSimplex f) = f :=
+    X.spine n (sx.spineToSimplex f) = f := by
+  induction n with
+  | zero => simp [spine, spineToSimplex]
+  | succ n => exact sx.1 (n + 1) |>.spine_spineToSimplex_apply f
+
+lemma spineToSimplex_spine_apply (Δ : X _[n]) :
+    sx.spineToSimplex (X.spine n Δ) = Δ := by
+  induction n with
+  | zero => simp [spine, spineToSimplex]
+  | succ n => exact sx.1 (n + 1) |>.spineToSimplex_spine_apply Δ
+
+abbrev spineEquiv {n : ℕ} : X _[n] ≃ Path X n :=
   match n with
-  | .zero => 
-  | .succ n => sx.1 (n + 1) |>.spine_spineToSimplex_apply f
-
-lemma spine_spineToSimplex_apply (f : Path X (n + 1)) :
-    X.spine (sx.spineToSimplex f) = f :=
-  sx.1 (n + 1) |>.spine_spineToSimplex_apply f
-
-lemma spineToSimplex_spine_apply (Δ : X _[n + 1]) :
-    sx.spineToSimplex (X.spine Δ) = Δ :=
-  sx.1 (n + 1) |>.spineToSimplex_spine_apply Δ
-
-/-- The fields of `StrictSegal` define an equivalence between `X _[n + 1]` and
-`Path X (n + 1)`. -/
-abbrev spineEquiv {n : ℕ} : X _[n + 1] ≃ Path X (n + 1) :=
-  sx.1 (n + 1) |>.spineEquiv
+  | .zero => {
+      toFun := ((truncation 1).obj X).spine 0
+      invFun := (sx.1 0).spineToSimplex
+  }
+  | .succ n => sx.1 (n + 1) |>.spineEquiv
 
 theorem spineInjective : Function.Injective (sx.spineEquiv (n := n)) :=
   sx.1 (n + 1) |>.spineInjective
