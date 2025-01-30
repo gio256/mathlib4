@@ -35,12 +35,6 @@ namespace Truncated
 
 open SimplexCategory.Truncated Truncated.Hom SimplicialObject.Truncated
 
-/-/1-- The data of an inverse to `X.spine n` for `X` an `n`-truncated simplicial set. -1/ -/
-/-private structure StrictSegalAux0 {n : ℕ} (X : SSet.Truncated.{u} n) where -/
-/-  spineToSimplex : Path X n → X _[n]ₙ -/
-/-  spine_spineToSimplex : spine X n ∘ spineToSimplex = id -/
-/-  spineToSimplex_spine : spineToSimplex ∘ spine X n = id -/
-
 /-- The data of an inverse to `X.spine n` for `X` an `n`-truncated simplicial set. -/
 private structure StrictSegalAux {n : ℕ} (X : SSet.Truncated.{u} n) where
   spineToSimplex : Path X n → X _[n]ₙ
@@ -51,9 +45,23 @@ private structure StrictSegalAux {n : ℕ} (X : SSet.Truncated.{u} n) where
 `n + 1`-simplices are uniquely determined by their spine and its further
 `n`-truncation is `StrictSegal`. -/
 inductive StrictSegal : {n : ℕ} → SSet.Truncated.{u} n → Type (u + 1) where
-  | nil {X : SSet.Truncated.{u} 0} : StrictSegalAux X → StrictSegal X
+  | nil {X : SSet.Truncated.{u} 0} : StrictSegal X
   | mk {n X} :
-    StrictSegalAux X → StrictSegal ((trunc (n + 1) n).obj X) → StrictSegal X
+    StrictSegal ((trunc (n + 1) n).obj X) → StrictSegalAux X → StrictSegal X
+
+/-- We can inhabit `StrictSegalAux X` for any 0-truncated simplicial set `X`. -/
+def StrictSegalAux.of_zero (X : SSet.Truncated.{u} 0) : StrictSegalAux X where
+  spineToSimplex f := f.vertex 0
+  spine_spineToSimplex := by
+    ext f i
+    simp only [Fin.eq_zero, Function.comp_apply, spine_vertex, const_eq_id]
+    erw [op_id]
+    simp
+  spineToSimplex_spine := by
+    ext Δ
+    simp only [Function.comp_apply, spine_vertex, const_eq_id]
+    erw [op_id]
+    simp
 
 namespace StrictSegal
 
@@ -64,8 +72,8 @@ variable {n : ℕ}
 private def aux {X : SSet.Truncated.{u} n} (sx : StrictSegal X) :
     StrictSegalAux X :=
   match sx with
-  | .nil aux => aux
-  | .mk aux _ => aux
+  | .nil => StrictSegalAux.of_zero X
+  | .mk _ aux => aux
 
 /-- For an `n + 1`-truncated simplicial set `X` equipped with
 `sx : StrictSegal X`, `sx.next` extracts the proof that the further
@@ -73,7 +81,7 @@ private def aux {X : SSet.Truncated.{u} n} (sx : StrictSegal X) :
 private def next {X : SSet.Truncated.{u} (n + 1)} (sx : StrictSegal X) :
     StrictSegal ((trunc (n + 1) n).obj X) :=
   match sx with
-  | .mk _ next => next
+  | .mk next _ => next
 
 /-- Returns the `StrictSegal` data of the further `m`-truncation of `X`. -/
 def trunc {n : ℕ} {X : SSet.Truncated n} (sx : StrictSegal X)
@@ -132,111 +140,108 @@ def spineToDiagonal {X : SSet.Truncated.{u} (n + 1)} (sx : StrictSegal X) :
   X.map (tr (diag (n + 1))).op ∘ sx.spineToSimplex
 
 @[simp]
-theorem spineToSimplex_vertex {X : SSet.Truncated.{u} (n + 1)}
-    (sx : StrictSegal X) (i : Fin (n + 2)) (f : Path X (n + 1)) :
-    X.map (tr (const [0] [n + 1] i)).op (sx.spineToSimplex f) = f.vertex i := by
-  erw [← spine_vertex X (n + 1)]
-  rw [spine_spineToSimplex_apply]
+theorem spineToSimplex_vertex {X : SSet.Truncated.{u} n}
+    (sx : StrictSegal X) (f : Path X n) (i : Fin (n + 1)) :
+    X.map (tr (const [0] [n] i)).op (sx.spineToSimplex f) = f.vertex i := by
+  rw [← spine_vertex X n, spine_spineToSimplex_apply]
 
 @[simp]
 theorem spineToSimplex_arrow {X : SSet.Truncated.{u} (n + 1)}
-    (sx : StrictSegal X) (i : Fin (n + 1)) (f : Path X (n + 1)) :
+    (sx : StrictSegal X) (f : Path X (n + 1)) (i : Fin (n + 1)) :
     X.map (tr (mkOfSucc i)).op (sx.spineToSimplex f) = f.arrow i := by
-  erw [← spine_arrow X (n + 1)]
-  rw [spine_spineToSimplex_apply]
+  rw [← spine_arrow X (n + 1), spine_spineToSimplex_apply]
+
+section interval
+
+variable {X : SSet.Truncated.{u} (n + 1)} (sx : StrictSegal X)
+variable (f : Path X (n + 1)) (j l : ℕ) (h : j + l ≤ n)
+
+@[simp]
+theorem spineToSimplex_interval :
+    X.map (tr (subinterval j (l + 1) (by omega))).op (sx.spineToSimplex f) =
+      (sx.trunc (l + 1)).spineToSimplex (f.interval j (l + 1) (by omega)) := by
+  apply sx.trunc (l + 1) |>.spineInjective
+  dsimp only [spineEquiv, Equiv.coe_fn_mk]
+  rw [spine_spineToSimplex_apply, trunc_spine X l (l + 1),
+    spine_map_subinterval, spine_spineToSimplex_apply sx f]
+
+theorem spineToSimplex_edge :
+    X.map (tr (intervalEdge j (l + 1) (by omega))).op (sx.spineToSimplex f) =
+      (sx.trunc (l + 1)).spineToDiagonal (f.interval j (l + 1) (by omega)) := by
+  dsimp only [spineToDiagonal, Function.comp_apply]
+  rw [← spineToSimplex_interval (h := h)]
+  dsimp only [len_mk, Int.reduceNeg, id_eq, Int.Nat.cast_ofNat_Int, Truncated.trunc,
+    SimplicialObject.Truncated.trunc, incl, whiskeringLeft_obj_obj, Functor.comp_map,
+    Functor.op_obj, Functor.op_map, Quiver.Hom.unop_op]
+  rw [← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp (n := n + 1),
+    ← diag_subinterval_eq]
+
+end interval
+
+section spine_δ
+
+variable {X : SSet.Truncated.{u} (n + 1)} (sx : StrictSegal X)
+variable (f : Path X (n + 1)) {i : Fin (n + 1)} {j : Fin (n + 2)}
+
+/-- If we take the path along the spine of the `j`th face of a `spineToSimplex`,
+the common vertices will agree with those of the original path `f`. In particular,
+a vertex `i` with `i < j` can be identified with the same vertex in `f`. -/
+lemma spine_δ_vertex_lt (hij : i.castSucc < j) :
+    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).vertex i =
+      f.vertex i.castSucc := by
+  rw [spine_vertex X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+    const_comp, spineToSimplex_vertex]
+  dsimp only [δ, len_mk, mkHom, Hom.toOrderHom_mk, Fin.succAboveOrderEmb_apply,
+    OrderEmbedding.toOrderHom_coe]
+  rw [Fin.succAbove_of_castSucc_lt j i hij]
+
+/-- If we take the path along the spine of the `j`th face of a `spineToSimplex`,
+a vertex `i` with `j ≤ i` can be identified with vertex `i + 1` in the original
+path. -/
+lemma spine_δ_vertex_ge (hij : j ≤ i.castSucc) :
+    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).vertex i =
+      f.vertex i.succ := by
+  rw [spine_vertex X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+    const_comp, spineToSimplex_vertex]
+  dsimp only [δ, len_mk, mkHom, Hom.toOrderHom_mk, Fin.succAboveOrderEmb_apply,
+    OrderEmbedding.toOrderHom_coe]
+  rw [Fin.succAbove_of_le_castSucc j i hij]
+
+variable {i : Fin n} {j : Fin (n + 2)}
+
+/-- If we take the path along the spine of the `j`th face of a `spineToSimplex`,
+the common arrows will agree with those of the original path `f`. In particular,
+an arrow `i` with `i + 1 < j` can be identified with the same arrow in `f`. -/
+lemma spine_δ_arrow_lt (hij : i.succ.castSucc < j) :
+    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).arrow i =
+      f.arrow i.castSucc := by
+  rw [spine_arrow X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+    mkOfSucc_δ_lt hij, spineToSimplex_arrow]
+
+/-- If we take the path along the spine of the `j`th face of a `spineToSimplex`,
+an arrow `i` with `i + 1 > j` can be identified with arrow `i + 1` in the
+original path. -/
+lemma spine_δ_arrow_gt (hij : j < i.succ.castSucc) :
+    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).arrow i =
+      f.arrow i.succ := by
+  rw [spine_arrow X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+    mkOfSucc_δ_gt hij, spineToSimplex_arrow]
+
+end spine_δ
+
+variable {X : SSet.Truncated.{u} (n + 2)} (sx : StrictSegal X)
+  (f : Path X (n + 2)) {i : Fin (n + 1)} {j : Fin (n + 3)}
+
+/-- If we take the path along the spine of a face of a `spineToSimplex`, the
+arrows not contained in the original path can be recovered as the diagonal edge
+of the `spineToSimplex` that "composes" arrows `i` and `i + 1`. -/
+lemma spine_δ_arrow_eq (hij : j = i.succ.castSucc) :
+    (X.spine (n + 1) _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).arrow i =
+      (sx.trunc 2).spineToDiagonal (f.interval i 2 (by omega)) := by
+  rw [spine_arrow X (n + 1), ← FunctorToTypes.map_comp_apply, ← op_comp,
+    ← tr_comp, mkOfSucc_δ_eq hij, spineToSimplex_edge (h := by omega)]
 
 end StrictSegal
-
-
-/-section interval -/
-
-/-variable (f : Path X (n + 1)) (j l : ℕ) (h : j + l ≤ n) -/
-
-/-@[simp] -/
-/-theorem spineToSimplex_interval : -/
-/-    X.map (tr (subinterval j (l + 1) (by omega))).op (sx.spineToSimplex f) = -/
-/-      (sx.trunc (l + 1)).spineToSimplex (f.interval j (l + 1) (by omega)) := by -/
-/-  apply sx.trunc (l + 1) |>.spineInjective -/
-/-  dsimp only [spineEquiv, Equiv.coe_fn_mk] -/
-/-  rw [spine_spineToSimplex_apply, trunc_spine X l (l + 1), -/
-/-    spine_map_subinterval, spine_spineToSimplex_apply sx f] -/
-
-/-theorem spineToSimplex_edge : -/
-/-    X.map (tr (intervalEdge j (l + 1) (by omega))).op (sx.spineToSimplex f) = -/
-/-      (sx.trunc (l + 1)).spineToDiagonal (f.interval j (l + 1) (by omega)) := by -/
-/-  dsimp only [spineToDiagonal, Function.comp_apply] -/
-/-  rw [← spineToSimplex_interval (h := h)] -/
-/-  dsimp only [len_mk, Int.reduceNeg, id_eq, Int.Nat.cast_ofNat_Int, Truncated.trunc, -/
-/-    SimplicialObject.Truncated.trunc, incl, whiskeringLeft_obj_obj, Functor.comp_map, -/
-/-    Functor.op_obj, Functor.op_map, Quiver.Hom.unop_op] -/
-/-  rw [← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp (n := n + 1), -/
-/-    ← diag_subinterval_eq] -/
-
-/-end interval -/
-
-/-section spine_δ -/
-
-/-variable (f : Path X (n + 1)) {i : Fin (n + 1)} {j : Fin (n + 2)} -/
-
-/-/1-- If we take the path along the spine of the `j`th face of a `spineToSimplex`, -/
-/-the common vertices will agree with those of the original path `f`. In particular, -/
-/-a vertex `i` with `i < j` can be identified with the same vertex in `f`. -1/ -/
-/-lemma spine_δ_vertex_lt (hij : i.castSucc < j) : -/
-/-    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).vertex i = -/
-/-      f.vertex i.castSucc := by -/
-/-  rw [spine_vertex X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp, -/
-/-    const_comp, spineToSimplex_vertex] -/
-/-  dsimp only [δ, len_mk, mkHom, Hom.toOrderHom_mk, Fin.succAboveOrderEmb_apply, -/
-/-    OrderEmbedding.toOrderHom_coe] -/
-/-  rw [Fin.succAbove_of_castSucc_lt j i hij] -/
-
-/-/1-- If we take the path along the spine of the `j`th face of a `spineToSimplex`, -/
-/-a vertex `i` with `j ≤ i` can be identified with vertex `i + 1` in the original -/
-/-path. -1/ -/
-/-lemma spine_δ_vertex_ge (hij : j ≤ i.castSucc) : -/
-/-    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).vertex i = -/
-/-      f.vertex i.succ := by -/
-/-  rw [spine_vertex X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp, -/
-/-    const_comp, spineToSimplex_vertex] -/
-/-  dsimp only [δ, len_mk, mkHom, Hom.toOrderHom_mk, Fin.succAboveOrderEmb_apply, -/
-/-    OrderEmbedding.toOrderHom_coe] -/
-/-  rw [Fin.succAbove_of_le_castSucc j i hij] -/
-
-/-variable {i : Fin n} {j : Fin (n + 2)} -/
-
-/-/1-- If we take the path along the spine of the `j`th face of a `spineToSimplex`, -/
-/-the common arrows will agree with those of the original path `f`. In particular, -/
-/-an arrow `i` with `i + 1 < j` can be identified with the same arrow in `f`. -1/ -/
-/-lemma spine_δ_arrow_lt (hij : i.succ.castSucc < j) : -/
-/-    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).arrow i = -/
-/-      f.arrow i.castSucc := by -/
-/-  rw [spine_arrow X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp, -/
-/-    mkOfSucc_δ_lt hij, spineToSimplex_arrow] -/
-
-/-/1-- If we take the path along the spine of the `j`th face of a `spineToSimplex`, -/
-/-an arrow `i` with `i + 1 > j` can be identified with arrow `i + 1` in the -/
-/-original path. -1/ -/
-/-lemma spine_δ_arrow_gt (hij : j < i.succ.castSucc) : -/
-/-    (X.spine n _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).arrow i = -/
-/-      f.arrow i.succ := by -/
-/-  rw [spine_arrow X n, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp, -/
-/-    mkOfSucc_δ_gt hij, spineToSimplex_arrow] -/
-
-/-end spine_δ -/
-
-/-variable {X : SSet.Truncated.{u} (n + 2)} (sx : StrictSegal X) -/
-/-  (f : Path X (n + 2)) {i : Fin (n + 1)} {j : Fin (n + 3)} -/
-
-/-/1-- If we take the path along the spine of a face of a `spineToSimplex`, the -/
-/-arrows not contained in the original path can be recovered as the diagonal edge -/
-/-of the `spineToSimplex` that "composes" arrows `i` and `i + 1`. -1/ -/
-/-lemma spine_δ_arrow_eq (hij : j = i.succ.castSucc) : -/
-/-    (X.spine (n + 1) _ (X.map (tr (δ j)).op (sx.spineToSimplex f))).arrow i = -/
-/-      (sx.trunc 2).spineToDiagonal (f.interval i 2 (by omega)) := by -/
-/-  rw [spine_arrow X (n + 1), ← FunctorToTypes.map_comp_apply, ← op_comp, -/
-/-    ← tr_comp, mkOfSucc_δ_eq hij, spineToSimplex_edge (h := by omega)] -/
-
-/-end StrictSegal -/
 end Truncated
 
 variable (X : SSet.{u})
@@ -272,73 +277,45 @@ lemma trunc_eq (n m : ℕ) (h : m ≤ n) : (sx.1 n).trunc m h = sx.1 m := by
 /-     | .zero => f.toPath₀ -/
 /-     | .succ _ => f -/
 
-  /- X.Path n : Type u -/
-  /- ((truncation n).obj X).Path n : Type u -/
 /-- The inverse to `X.spine`. -/
-/- def spineToSimplex (f : Path X n) : X _[n] := sx.1 n |>.spineToSimplex f -/
-def spineToSimplex (f : Path X n) : X _[n] :=
-  match n with
-  | .zero => sx.1 0 |>.spineToSimplex f.toPath₀
-  | .succ n => sx.1 (n + 1) |>.spineToSimplex f
-  /- match n with -/
-  /- | .zero => f.vertex 0 -/
-  /- | .succ n => sx.1 (n + 1) |>.spineToSimplex f -/
+def spineToSimplex : Path X n → X _[n] := sx.1 n |>.spineToSimplex
 
 /-- `spineToSimplex` is a right inverse to `X.spine`. -/
-lemma spine_spineToSimplex : X.spine n ∘ sx.spineToSimplex = id := by
-  induction n with
-  | zero =>
-    ext f j
-    · simp only [spine, spineToSimplex, Function.comp_apply, Fin.eq_zero,
-        Truncated.StrictSegal.spine_spineToSimplex_apply, Path.foo]
-      simp [Truncated.Path.vertex]
-    · exact j.elim0
-  | succ n => exact sx.1 (n + 1) |>.spine_spineToSimplex
+lemma spine_spineToSimplex : X.spine n ∘ sx.spineToSimplex = id :=
+  sx.1 n |>.spine_spineToSimplex
 
 /-- `spineToSimplex` is a left inverse to `X.spine`. -/
-lemma spineToSimplex_spine : sx.spineToSimplex ∘ X.spine (n := n) = id :=
-  match n with
-  | .zero => by
-    ext Δ
-    simp [spineToSimplex, spine]
-  | .succ n => sx.1 (n + 1) |>.spineToSimplex_spine
+lemma spineToSimplex_spine : sx.spineToSimplex ∘ X.spine n = id :=
+  sx.1 n |>.spineToSimplex_spine
 
 lemma spine_spineToSimplex_apply (f : Path X n) :
-    X.spine n (sx.spineToSimplex f) = f := by
-  induction n with
-  | zero => simp [spine, spineToSimplex]
-  | succ n => exact sx.1 (n + 1) |>.spine_spineToSimplex_apply f
+    X.spine n (sx.spineToSimplex f) = f :=
+  sx.1 n |>.spine_spineToSimplex_apply f
 
 lemma spineToSimplex_spine_apply (Δ : X _[n]) :
-    sx.spineToSimplex (X.spine n Δ) = Δ := by
-  induction n with
-  | zero => simp [spine, spineToSimplex]
-  | succ n => exact sx.1 (n + 1) |>.spineToSimplex_spine_apply Δ
+    sx.spineToSimplex (X.spine n Δ) = Δ :=
+  sx.1 n |>.spineToSimplex_spine_apply Δ
 
-abbrev spineEquiv {n : ℕ} : X _[n] ≃ Path X n :=
-  match n with
-  | .zero => {
-      toFun := ((truncation 1).obj X).spine 0
-      invFun := (sx.1 0).spineToSimplex
-  }
-  | .succ n => sx.1 (n + 1) |>.spineEquiv
+def spineEquiv (n : ℕ) : X _[n] ≃ Path X n := sx.1 n |>.spineEquiv
 
-theorem spineInjective : Function.Injective (sx.spineEquiv (n := n)) :=
-  sx.1 (n + 1) |>.spineInjective
+theorem spineInjective : Function.Injective (sx.spineEquiv n) :=
+  sx.1 n |>.spineInjective
 
-lemma spineEquiv_coe_fn (n : ℕ) : ⇑(sx.spineEquiv (n := n)) = X.spine := rfl
+lemma spineEquiv_coe_fn (n : ℕ) : ⇑(sx.spineEquiv n) = X.spine n := rfl
 
 lemma spineEquiv_symm_coe_fn (n : ℕ) :
-    ⇑(sx.spineEquiv (n := n)).symm = sx.spineToSimplex :=
+    ⇑(sx.spineEquiv n).symm = sx.spineToSimplex :=
   rfl
 
-theorem spineToSimplex_vertex (i : Fin (n + 2)) (f : Path X (n + 1)) :
-    X.map (const [0] [n + 1] i).op (sx.spineToSimplex f) = f.vertex i :=
-  sx.1 (n + 1) |>.spineToSimplex_vertex i f
+theorem spineToSimplex_vertex (f : Path X n) (i : Fin (n + 1)) :
+    X.map (const [0] [n] i).op (sx.spineToSimplex f) = f.vertex i :=
+  match n with
+  | .zero => sx.1 0 |>.spineToSimplex_vertex f i
+  | .succ n => sx.1 (n + 1) |>.spineToSimplex_vertex f i
 
-theorem spineToSimplex_arrow (i : Fin (n + 1)) (f : Path X (n + 1)) :
+theorem spineToSimplex_arrow (f : Path X (n + 1)) (i : Fin (n + 1)) :
     X.map (mkOfSucc i).op (sx.spineToSimplex f) = f.arrow i :=
-  sx.1 (n + 1) |>.spineToSimplex_arrow i f
+  sx.1 (n + 1) |>.spineToSimplex_arrow f i
 
 /-- In the presence of the strict Segal condition, a path of length `n + 1` can
 be "composed" by taking the diagonal edge of the resulting `n + 1`-simplex. -/
@@ -376,14 +353,14 @@ variable {i : Fin (n + 2)} {j : Fin (n + 3)}
 the common vertices will agree with those of the original path `f`. In particular,
 a vertex `i` with `i < j` can be identified with the same vertex in `f`. -/
 lemma spine_δ_vertex_lt (h : i.castSucc < j) :
-    (X.spine (X.δ j (sx.spineToSimplex f))).vertex i = f.vertex i.castSucc :=
+    (X.spine (n + 1) (X.δ j (sx.spineToSimplex f))).vertex i = f.vertex i.castSucc :=
   sx.1 (n + 2) |>.spine_δ_vertex_lt f h
 
 /-- If we take the path along the spine of the `j`th face of a `spineToSimplex`,
 a vertex `i` with `i ≥ j` can be identified with vertex `i + 1` in the original
 path. -/
 lemma spine_δ_vertex_ge (h : j ≤ i.castSucc) :
-    (X.spine (X.δ j (sx.spineToSimplex f))).vertex i = f.vertex i.succ :=
+    (X.spine (n + 1) (X.δ j (sx.spineToSimplex f))).vertex i = f.vertex i.succ :=
   sx.1 (n + 2) |>.spine_δ_vertex_ge f h
 
 variable {i : Fin (n + 1)} {j : Fin (n + 3)}
@@ -392,21 +369,21 @@ variable {i : Fin (n + 1)} {j : Fin (n + 3)}
 the common arrows will agree with those of the original path `f`. In particular,
 an arrow `i` with `i + 1 < j` can be identified with the same arrow in `f`. -/
 lemma spine_δ_arrow_lt (h : i.succ.castSucc < j) :
-    (X.spine (X.δ j (sx.spineToSimplex f))).arrow i = f.arrow i.castSucc :=
+    (X.spine (n + 1) (X.δ j (sx.spineToSimplex f))).arrow i = f.arrow i.castSucc :=
   sx.1 (n + 2) |>.spine_δ_arrow_lt f h
 
 /-- If we take the path along the spine of the `j`th face of a `spineToSimplex`,
 an arrow `i` with `i + 1 > j` can be identified with arrow `i + 1` in the
 original path. -/
 lemma spine_δ_arrow_gt (h : j < i.succ.castSucc) :
-    (X.spine (X.δ j (sx.spineToSimplex f))).arrow i = f.arrow i.succ :=
+    (X.spine (n + 1) (X.δ j (sx.spineToSimplex f))).arrow i = f.arrow i.succ :=
   sx.1 (n + 2) |>.spine_δ_arrow_gt f h
 
 /-- If we take the path along the spine of a face of a `spineToSimplex`, the
 arrows not contained in the original path can be recovered as the diagonal edge
 of the `spineToSimplex` that "composes" arrows `i` and `i + 1`. -/
 lemma spine_δ_arrow_eq (h : j = i.succ.castSucc) :
-    (X.spine (X.δ j (sx.spineToSimplex f))).arrow i =
+    (X.spine (n + 1) (X.δ j (sx.spineToSimplex f))).arrow i =
       sx.spineToDiagonal (f.interval i 2 (by omega)) := by
   dsimp only [spineToDiagonal]
   rw [← trunc_eq sx (n + 2) 2]
@@ -425,9 +402,9 @@ noncomputable def CategoryTheory.Nerve.strictSegal
   refine ⟨?_, ?_⟩
   · intro n
     induction n with
-    | zero => exact .nil _
+    | zero => exact .nil
     | succ n h =>
-      refine .mk ?_ h
+      refine .mk h ?_
       use fun F ↦
         ComposableArrows.mkOfObjOfMapSucc (fun i ↦ (F.vertex i).obj 0)
           (fun i ↦ eqToHom (Functor.congr_obj (F.arrow_src i).symm 0) ≫
@@ -436,7 +413,8 @@ noncomputable def CategoryTheory.Nerve.strictSegal
         refine ComposableArrows.ext₁ ?_ ?_ ?_
         · exact Functor.congr_obj (F.arrow_src i).symm 0
         · exact Functor.congr_obj (F.arrow_tgt i).symm 0
-        · dsimp [truncation, SimplicialObject.truncation]
+        · dsimp [SSet.Path.arrow, spine_arrow, truncation,
+            SimplicialObject.truncation]
           apply ComposableArrows.mkOfObjOfMapSucc_map_succ
       · ext F
         fapply ComposableArrows.ext

@@ -30,33 +30,93 @@ open SimplexCategory.Truncated Hom SimplicialObject.Truncated
 
 variable {n : ℕ}
 
+/-- A path of length `m` in a 0-truncated simplicial set `X` consists of `m + 1`
+0-simplices in `X`. -/
 @[ext]
 structure Path₀ (X : SSet.Truncated.{u} 0) (m : ℕ) where
   vertex (i : Fin (m + 1)) : X _[0]₀
 
-def Path₀.of_vertex {X : SSet.Truncated.{u} 0} (Δ : X _[0]₀) :  Path₀ X 0 :=
+namespace Path₀
+
+variable {X : SSet.Truncated.{u} 0} {m : ℕ}
+
+/-- A 0-simplex in `X` defines a path of length 0 in `X`. -/
+def of_vertex (Δ : X _[0]₀) :  Path₀ X 0 :=
   { vertex _ := Δ }
 
-instance (X : SSet.Truncated.{u} 0) : Coe (X _[0]₀) (Path₀ X 0) where
+instance {X : SSet.Truncated.{u} 0} : Coe (X _[0]₀) (Path₀ X 0) where
   coe := Path₀.of_vertex
 
+def interval (f : Path₀ X m) (j l : ℕ) (h : j + l ≤ m := by omega) :
+    Path₀ X l where
+  vertex i := f.vertex ⟨j + i, by omega⟩
+
+@[simps]
+def map {X Y : SSet.Truncated 0} {m : ℕ} (f : Path₀ X m) (σ : X ⟶ Y) :
+    Path₀ Y m where
+  vertex i := σ.app (op [0]₀) (f.vertex i)
+
+end Path₀
+
+/-- A path of length `m` in a 1-truncated simplicial set `X` is a directed path
+of `m` edges. -/
 @[ext]
-structure Path₁ (X : SSet.Truncated.{u} 1) (m : ℕ) extends Path₀ ((trunc 1 0).obj X) m where
+structure Path₁ (X : SSet.Truncated.{u} 1) (m : ℕ)
+    extends Path₀ ((trunc 1 0).obj X) m where
   arrow (i : Fin m) : X _[1]₁
   arrow_src (i : Fin m) : X.map (tr (δ 1)).op (arrow i) = vertex i.castSucc
   arrow_tgt (i : Fin m) : X.map (tr (δ 0)).op (arrow i) = vertex i.succ
 
-/- instance (X : SSet.Truncated.{u} 0) : Coe (X _[0]₀) (Path₁ X 0) where -/
-/-   coe f := { -/
-/-     vertex _ := f -/
-/-     arrow i := i.elim0 -/
-/-     arrow_src i := i.elim0 -/
-/-     arrow_tgt i := i.elim0 } -/
+namespace Path₁
+
+variable {X : SSet.Truncated.{u} 1} {m : ℕ}
+
+instance : Coe (Path₁ X 0) (Path₀ ((trunc 1 0).obj X) 0) where
+  coe := Path₁.toPath₀
+
+@[ext]
+lemma ext' {f g : Path₁ X (m + 1)} (h : ∀ i, f.arrow i = g.arrow i) :
+    f = g := by
+  ext j
+  · rcases Fin.eq_castSucc_or_eq_last j with ⟨k, hk⟩ | hl
+    · rw [hk, ← f.arrow_src k, ← g.arrow_src k, h]
+    · simp only [hl, ← Fin.succ_last]
+      rw [← f.arrow_tgt (Fin.last m), ← g.arrow_tgt (Fin.last m), h]
+  · exact h j
+
+def interval (f : Path₁ X m) (j l : ℕ) (h : j + l ≤ m := by omega) :
+    Path₁ X l where
+  vertex := Path₀.interval f.toPath₀ j l h |>.vertex
+  arrow i := f.arrow ⟨j + i, by omega⟩
+  arrow_src i := f.arrow_src ⟨j + i, by omega⟩
+  arrow_tgt i := f.arrow_tgt ⟨j + i, by omega⟩
+
+@[simps]
+def map {X Y : SSet.Truncated 1} {m : ℕ} (f : Path₁ X m) (σ : X ⟶ Y) :
+    Path₁ Y m where
+  vertex := Path₀.map f.toPath₀ ((trunc 1 0).map σ) |>.vertex
+  arrow i := σ.app (op [1]₁) (f.arrow i)
+  arrow_src i := by
+    simp only [← f.arrow_src, Path₀.map_vertex]
+    exact congr (σ.naturality (tr (δ 1)).op) rfl |>.symm
+  arrow_tgt i := by
+    simp only [← f.arrow_tgt, Path₀.map_vertex]
+    exact congr (σ.naturality (tr (δ 0)).op) rfl |>.symm
+
+end Path₁
 
 def Path (X : SSet.Truncated.{u} n) := by
   induction n with
   | zero => exact Path₀ X
   | succ n => exact Path₁ ((trunc (n + 1) 1).obj X)
+
+/-- A path can always be coerced to `Path₀` by forgetting the arrows. -/
+instance {X : SSet.Truncated.{u} n} {m : ℕ} :
+    Coe (Path X m) (Path₀ ((trunc n 0).obj X) m) where
+  coe f :=
+    match n with
+    | .zero => f
+    | .succ _ => f.toPath₀
 
 /- @[ext] -/
 /- structure Path₀ (X : SSet.Truncated.{u} n) (m : ℕ) where -/
@@ -77,9 +137,7 @@ namespace Path
 
 def vertex {X : SSet.Truncated.{u} n} {m : ℕ} (f : Path X m) (i : Fin (m + 1)) :
     ((trunc n 0).obj X) _[0]₀ :=
-  match n with
-  | .zero => Path₀.vertex f i
-  | .succ _ => Path₀.vertex f.toPath₀ i
+  Path₀.vertex f i
 
 def arrow {X : SSet.Truncated.{u} (n + 1)} {m : ℕ} (f : Path X m) (i : Fin m) :
     ((trunc (n + 1) 1).obj X) _[1]₁ :=
@@ -93,8 +151,21 @@ lemma arrow_tgt {X : SSet.Truncated.{u} (n + 1)} {m : ℕ} (f : Path X m) (i : F
     X.map (tr (δ 0)).op (f.arrow i) = f.vertex i.succ :=
   Path₁.arrow_tgt f i
 
+/- abbrev foo {X : SSet.Truncated.{u} n} {m : ℕ} -/
+/-     (f : Path X m) (j : ℕ) (h : j ≤ n) : Path ((trunc n j).obj X) m := by -/
+/-   induction n with -/
+/-   | zero => exact Nat.eq_zero_of_le_zero h |>.symm ▸ f -/
+/-   | succ n => -/
+/-     induction m with -/
+/-     | zero => -/
+/-       simp [Path] at f ⊢ -/
+/-       exact f -/
+/-     | succ m => -/
+/-       simp [Path] -/
+/-       exact f -/
+
 @[ext]
-lemma ext₀ {X : SSet.Truncated 0} {m : ℕ} {f g : Path X m}
+lemma ext₀ {X : SSet.Truncated.{u} 0} {m : ℕ} {f g : Path X m}
     (h : f.vertex = g.vertex) : f = g :=
   Path₀.ext h
 
@@ -104,38 +175,23 @@ lemma ext₁ {X : SSet.Truncated.{u} (n + 1)} {m : ℕ} {f g : Path X m}
   Path₁.ext hᵥ hₐ
 
 @[ext]
-lemma ext {X : SSet.Truncated.{u} (n + 1)} {m : ℕ} {f g : Path X (m + 1)}
-    (h : ∀ i, f.arrow i = g.arrow i) : f = g := by
-  ext j
-  · rcases Fin.eq_castSucc_or_eq_last j with ⟨k, hk⟩ | hl
-    · rw [hk, ← f.arrow_src k, ← g.arrow_src k, h]
-    · simp only [hl, ← Fin.succ_last]
-      rw [← f.arrow_tgt (Fin.last m), ← g.arrow_tgt (Fin.last m), h]
-  · exact h j
+lemma ext' {X : SSet.Truncated.{u} (n + 1)} {m : ℕ} {f g : Path X (m + 1)}
+    (h : ∀ i, f.arrow i = g.arrow i) : f = g :=
+  Path₁.ext' h
 
 def interval {X : SSet.Truncated.{u} n} {m : ℕ} (f : Path X m)
     (j l : ℕ) (h : j + l ≤ m := by omega) : Path X l :=
   match n with
-  | .zero => { vertex i := f.vertex ⟨j + i, by omega⟩ }
-  | .succ n => {
-      vertex i := f.vertex ⟨j + i, by omega⟩
-      arrow i := f.arrow ⟨j + i, by omega⟩
-      arrow_src i := f.arrow_src ⟨j + i, by omega⟩
-      arrow_tgt i := f.arrow_tgt ⟨j + i, by omega⟩ }
+  | .zero => Path₀.interval f j l h
+  | .succ _ => Path₁.interval f j l h
 
-def map {X Y : SSet.Truncated.{u} n} {m : ℕ} (f : Path X m) (σ : X ⟶ Y) : Path Y m :=
+def map {X Y : SSet.Truncated.{u} n} {m : ℕ} (f : Path X m) (σ : X ⟶ Y) :
+    Path Y m :=
   match n with
-  | .zero => { vertex i := σ.app (op [0]₀) (f.vertex i) }
-  | .succ n => {
-      vertex i := σ.app (op [0]ₙ₊₁) (f.vertex i)
-      arrow i := σ.app (op [1]ₙ₊₁) (f.arrow i)
-      arrow_src i := by
-        simp only [← f.arrow_src i]
-        exact congr (σ.naturality (tr (δ 1)).op) rfl |>.symm
-      arrow_tgt i := by
-        simp only [← f.arrow_tgt i]
-        exact congr (σ.naturality (tr (δ 0)).op) rfl |>.symm }
+  | .zero => Path₀.map f σ
+  | .succ n => Path₁.map f ((trunc (n + 1) 1).map σ)
 
+@[simp]
 lemma map_vertex {X Y : SSet.Truncated.{u} n} {m : ℕ}
     (f : Path X m) (σ : X ⟶ Y) (i : Fin (m + 1)) :
     (f.map σ).vertex i = σ.app (op [0]ₙ) (f.vertex i) :=
@@ -143,6 +199,7 @@ lemma map_vertex {X Y : SSet.Truncated.{u} n} {m : ℕ}
   | .zero => rfl
   | .succ _ => rfl
 
+@[simp]
 lemma map_arrow {X Y : SSet.Truncated.{u} (n + 1)} {m : ℕ}
     (f : Path X m) (σ : X ⟶ Y) (i : Fin m) :
     (f.map σ).arrow i = σ.app (op [1]ₙ₊₁) (f.arrow i) :=
@@ -161,6 +218,10 @@ def spine (X : SSet.Truncated.{u} n) (m : ℕ) (h : m ≤ n := by omega) (Δ : X
     Path X m :=
   match n with
   | .zero => { vertex i := X.map (tr (const [0] [m] i)).op Δ }
+  /- | .zero => -/
+  /-   match m with -/
+  /-   | .zero => { vertex _ := Δ } -/
+  /-   | .succ m => False.elim <| Nat.not_succ_le_zero m h -/
   | .succ _ => {
       vertex i := X.map (tr (const [0] [m] i)).op Δ
       arrow i := X.map (tr (mkOfSucc i)).op Δ
@@ -179,153 +240,145 @@ def spine (X : SSet.Truncated.{u} n) (m : ℕ) (h : m ≤ n := by omega) (Δ : X
 
 lemma spine_vertex (X : SSet.Truncated.{u} n) (m : ℕ) (h : m ≤ n)
     (Δ : X _[m]ₙ) (i : Fin (m + 1)) :
-    (X.spine m _ Δ).vertex i = X.map (const [0] [m] i).op Δ :=
+    (X.spine m _ Δ).vertex i = X.map (tr (const [0] [m] i)).op Δ :=
   match n with
   | .zero => rfl
+    /- match m with -/
+    /- | .zero => by -/
+    /-   simp [Fin.eq_zero, spine, Path.vertex, tr, spine_vertex] -/
+    /-   erw [CategoryTheory.op_id (X := [0]₀)] -/
+    /-   simp -/
+    /- | .succ m => False.elim <| Nat.not_succ_le_zero m h -/
   | .succ _ => rfl
 
 lemma spine_arrow (X : SSet.Truncated.{u} (n + 1)) (m : ℕ) (h : m ≤ n + 1)
     (Δ : X _[m]ₙ₊₁) (i : Fin m) :
-    (X.spine m _ Δ).arrow i = X.map (mkOfSucc i).op Δ :=
+    (X.spine m _ Δ).arrow i = X.map (tr (mkOfSucc i)).op Δ :=
   rfl
 
-/- lemma trunc_spine (X : SSet.Truncated.{u} n) (j m : ℕ) (h : j ≤ n) (hₘ : m ≤ j) : -/
-/-     ((trunc n j).obj X).spine m = X.spine m := -/
-/-   rfl -/
+lemma trunc_spine (X : SSet.Truncated.{u} (n + 1)) (j m : ℕ)
+    (h : j ≤ n := by omega) (hₘ : m ≤ j + 1 := by omega) :
+    ((trunc (n + 1) (j + 1)).obj X).spine m = X.spine m :=
+  rfl
 
 lemma spine_map_vertex (X : SSet.Truncated.{u} n) (m : ℕ) (hₘ : m ≤ n)
     (Δ : X _[m]ₙ) (a : ℕ) (hₐ : a ≤ n) (φ : [a]ₙ ⟶ [m]ₙ) (i : Fin (a + 1)) :
     (X.spine a hₐ (X.map φ.op Δ)).vertex i =
       (X.spine m hₘ Δ).vertex (φ.toOrderHom i) := by
-  simp only [spine_vertex]
-  rw [← FunctorToTypes.map_comp_apply]
-  erw [← op_comp]
-  rw [← tr_comp, const_comp]
-  rfl
+  simp [spine_vertex, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+    const_comp]
 
 lemma spine_map_subinterval (X : SSet.Truncated.{u} n)
     (m : ℕ) (hₘ : m ≤ n) (j l : ℕ) (h : j + l ≤ m) (Δ : X _[m]ₙ) :
     X.spine l (by omega) (X.map (tr (subinterval j l h)).op Δ) =
       (X.spine m hₘ Δ).interval j l h := by
-  induction n with
-  | zero =>
-    ext i
-    simp only [spine_vertex]
-    rw [← FunctorToTypes.map_comp_apply]
-    erw [← op_comp]
-    rw [← tr_comp, const_subinterval_eq]
-    rfl
-  | succ n =>
-    ext i
-    · simp only [spine_vertex]
-      rw [← FunctorToTypes.map_comp_apply]
-      erw [← op_comp]
-      rw [← tr_comp, const_subinterval_eq]
-      rfl
-    · simp only [spine_arrow]
-      rw [← FunctorToTypes.map_comp_apply]
-      erw [← op_comp]
-      rw [← tr_comp, mkOfSucc_subinterval_eq]
-      rfl
+  induction n
+  · ext i
+    rw [spine_vertex, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+      const_subinterval_eq]
+    simp [Path.interval, Path₀.interval, Path.vertex, spine]
+  · ext i
+    · rw [spine_vertex, ← FunctorToTypes.map_comp_apply, ← op_comp,
+        ← tr_comp, const_subinterval_eq]
+      simp [Path.interval, Path₁.interval, Path₀.interval, Path.vertex, spine]
+    · rw [spine_arrow, ← FunctorToTypes.map_comp_apply, ← op_comp, ← tr_comp,
+        mkOfSucc_subinterval_eq]
+      simp [Path.interval, Path₁.interval, Path₀.interval, Path.arrow, spine]
 
 end Truncated
 
 variable (X : SSet.{u})
 
-abbrev Path (n : ℕ) := truncation 1 |>.obj X |>.Path n
-/- abbrev Path (n : ℕ) := truncation n |>.obj X |>.Path n -/
-/- def Path (n : ℕ) := -/
+/-- Unfolding the definition of `Truncated.Path`, a path of length `n + 1` in a
+simplicial set `X` is defined as a `Truncated.Path₁` structure on the
+1-truncation of `X`. A path of length 0 in `X` is defined as a `Truncated.Path₀`
+structure on the 0-truncation of `X`. -/
+abbrev Path (n : ℕ) := truncation n |>.obj X |>.Path n
+/- abbrev Path (n : ℕ) := -/
 /-   match n with -/
 /-   | .zero => truncation 0 |>.obj X |>.Path 0 -/
 /-   | .succ n => truncation 1 |>.obj X |>.Path (n + 1) -/
 
 namespace Path
 
-variable {X}
+variable {X} {n : ℕ}
 
-def of_path₀ (f : Truncated.Path₀ ((truncation 0).obj X) 0) : Path X 0 where
-  vertex i := f.vertex i
-  arrow i := i.elim0
-  arrow_src i := i.elim0
-  arrow_tgt i := i.elim0
+instance : Coe (((truncation 1).obj X).Path 0) (Path X 0) where
+  coe := Truncated.Path₁.toPath₀
 
-instance : Coe (Truncated.Path ((truncation 0).obj X) 0) (Path X 0) where
-  coe := of_path₀
+/- instance {m : ℕ} (h : m ≤ n) : CoeOut (((truncation n).obj X).Path m) (Path X m) where -/
+/-   coe f := -/
+/-     match n with -/
+/-     | .zero => -/
+/-       match m with -/
+/-       | .zero => f -/
+/-       | .succ m => False.elim <| Nat.not_succ_le_zero m h -/
+/-     | .succ _ => -/
+/-       match m with -/
+/-       | .zero => f.toPath₀ -/
+/-       | .succ _ => f -/
 
-@[simp]
-lemma baz : Truncated.Path₁.toPath₀ ∘ of_path₀ (X := X) = id := rfl
+def vertex (f : Path X n) (i : Fin (n + 1)) : X _[0] :=
+  Truncated.Path.vertex f i
 
-@[simp]
-lemma bar : of_path₀ (X := X) ∘ Truncated.Path₁.toPath₀ = id := by
-  ext f j
-  · rfl
-  · exact j.elim0
+def arrow (f : Path X (n + 1)) (i : Fin (n + 1)) : X _[1] :=
+  Truncated.Path.arrow f i
 
-@[simp]
-lemma bar_apply (f : Truncated.Path₁ ((truncation 1).obj X) 0) : 
-    of_path₀ f.toPath₀ = f := by
-  ext j
-  · rfl
-  · exact j.elim0
+lemma arrow_src (f : Path X (n + 1)) (i : Fin (n + 1)) :
+    X.δ 1 (f.arrow i) = f.vertex i.castSucc :=
+  Truncated.Path.arrow_src f i
 
-@[simp]
-lemma baz_apply (f : Truncated.Path₀ ((truncation 0).obj X) 0) :
-    (of_path₀ f).toPath₀ = f :=
-  rfl
-
-@[simp]
-lemma foo (f : Truncated.Path₀ ((truncation 0).obj X) 0) :
-    (of_path₀ f).vertex 0 = f.vertex 0 :=
-  rfl
-
-open SimplicialObject.Truncated in
-def of_vertex (X : SSet.{u}) : ((truncation 0).obj X) _[0]₀ → Path X 0 :=
-  of_path₀ ∘ Truncated.Path₀.of_vertex
-
-variable {n : ℕ}
+lemma arrow_tgt (f : Path X (n + 1)) (i : Fin (n + 1)) :
+    X.δ 0 (f.arrow i) = f.vertex i.succ :=
+  Truncated.Path.arrow_tgt f i
 
 @[ext]
-lemma ext {f g : Path X (n + 1)} (h : ∀ i, f.arrow i = g.arrow i) : f = g :=
-  Truncated.Path.ext h
+lemma ext' {f g : Path X (n + 1)} (h : ∀ i, f.arrow i = g.arrow i) : f = g :=
+  Truncated.Path.ext' h
 
-abbrev interval (f : Path X n) (j l : ℕ) (h : j + l ≤ n := by omega) : Path X l :=
-  Truncated.Path.interval f j l h
-  /- match n with -/
-  /- | .zero => sorry -/
-  /- | .succ n => Truncated.Path.interval f j l h -/
+def interval (f : Path X n) (j l : ℕ) (h : j + l ≤ n := by omega) : Path X l :=
+  match n with
+  | .zero =>
+    match l with
+    | .zero => Truncated.Path.interval f j 0 h
+    | .succ l => False.elim <| Nat.not_succ_le_zero (j + l) h
+  | .succ _ =>
+    match l with
+    | .zero => Truncated.Path.interval f j 0 h |>.toPath₀
+    | .succ l => Truncated.Path.interval f j (l + 1) h
 
 variable {X Y : SSet.{u}} {n : ℕ} (f : Path X n) (σ : X ⟶ Y)
 
 /-- Maps of simplicial sets induce maps of paths. -/
-abbrev map : Path Y n := Truncated.Path.map f ((truncation 1).map σ)
-/- def map : Path Y n := Truncated.Path.map f ((truncation 1).map σ) -/
-  /- induction n with -/
-  /- | zero => -/
-  /-   refine Truncated.Path.map ?_ ((truncation 0).map σ) -/
-  /-   exact f -/
-  /- | succ n => -/
-  /-   refine Truncated.Path.map ?_ ((truncation 1).map σ) -/
-  /-   exact f -/
+def map : Path Y n :=
+  Truncated.Path.map f ((truncation n).map σ)
 
 lemma map_vertex (i : Fin (n + 1)) :
     (f.map σ).vertex i = σ.app (op [0]) (f.vertex i) :=
-  rfl
+  match n with
+  | .zero => rfl
+  | .succ _ => rfl
 
-lemma map_arrow (i : Fin n) :
+lemma map_arrow (f : Path X (n + 1)) (i : Fin (n + 1)) :
     (f.map σ).arrow i = σ.app (op [1]) (f.arrow i) :=
   rfl
 
 /-- `Path.map` respects subintervals of paths. -/
 lemma map_interval (j l : ℕ) (h : j + l ≤ n) :
     (f.map σ).interval j l h = (f.interval j l h).map σ :=
-  rfl
+  match n with
+  | .zero =>
+    match l with
+    | .zero => rfl
+    | .succ l => False.elim <| Nat.not_succ_le_zero (j + l) h
+  | .succ _ =>
+    match l with
+    | .zero => rfl
+    | .succ _ => rfl
 
 end Path
 
 def spine (n : ℕ) : X _[n] → Path X n :=
-  match n with
-  | .zero => Path.of_path₀ ∘ ((truncation 0).obj X).spine 0
-  /- | .zero => Path.of_vertex -/
-  | .succ n => truncation (n + 1) |>.obj X |>.spine (n + 1)
+  truncation n |>.obj X |>.spine n
 
 end SSet
