@@ -110,7 +110,7 @@ def Path (X : SSet.Truncated.{u} n) := by
   | zero => exact Path₀ X
   | succ n => exact Path₁ ((trunc (n + 1) 1).obj X)
 
-/-- A path can always be coerced to `Path₀` by forgetting the arrows. -/
+/-- Any path can be coerced to `Path₀` by forgetting the arrows. -/
 instance {X : SSet.Truncated.{u} n} {m : ℕ} :
     Coe (Path X m) (Path₀ ((trunc n 0).obj X) m) where
   coe f :=
@@ -294,14 +294,23 @@ simplicial set `X` is defined as a `Truncated.Path₁` structure on the
 1-truncation of `X`. A path of length 0 in `X` is defined as a `Truncated.Path₀`
 structure on the 0-truncation of `X`. -/
 abbrev Path (n : ℕ) := truncation n |>.obj X |>.Path n
-/- abbrev Path (n : ℕ) := -/
-/-   match n with -/
-/-   | .zero => truncation 0 |>.obj X |>.Path 0 -/
-/-   | .succ n => truncation 1 |>.obj X |>.Path (n + 1) -/
 
 namespace Path
 
 variable {X} {n : ℕ}
+
+/-- Constructs a `Path` of length `n` from its vertices and edges. -/
+abbrev mk (vertex : Fin (n + 1) → X _[0]) (arrow : Fin n → X _[1])
+    (arrow_src : ∀ i : Fin n, X.δ 1 (arrow i) = vertex i.castSucc)
+    (arrow_tgt : ∀ i : Fin n, X.δ 0 (arrow i) = vertex i.succ) :
+    Path X n :=
+  match n with
+  | .zero => { vertex := vertex }
+  | .succ _ =>
+    { vertex := vertex
+      arrow := arrow
+      arrow_src := arrow_src
+      arrow_tgt := arrow_tgt }
 
 instance : Coe (((truncation 1).obj X).Path 0) (Path X 0) where
   coe := Truncated.Path₁.toPath₀
@@ -321,16 +330,29 @@ instance : Coe (((truncation 1).obj X).Path 0) (Path X 0) where
 def vertex (f : Path X n) (i : Fin (n + 1)) : X _[0] :=
   Truncated.Path.vertex f i
 
-def arrow (f : Path X (n + 1)) (i : Fin (n + 1)) : X _[1] :=
-  Truncated.Path.arrow f i
+def arrow (f : Path X n) (i : Fin n) : X _[1] :=
+  match n with
+  | .zero => i.elim0
+  | .succ _ => Truncated.Path.arrow f i
 
-lemma arrow_src (f : Path X (n + 1)) (i : Fin (n + 1)) :
+lemma arrow_src (f : Path X n) (i : Fin n) :
     X.δ 1 (f.arrow i) = f.vertex i.castSucc :=
-  Truncated.Path.arrow_src f i
+  match n with
+  | .zero => i.elim0
+  | .succ _ => Truncated.Path.arrow_src f i
 
-lemma arrow_tgt (f : Path X (n + 1)) (i : Fin (n + 1)) :
+lemma arrow_tgt (f : Path X n) (i : Fin n) :
     X.δ 0 (f.arrow i) = f.vertex i.succ :=
-  Truncated.Path.arrow_tgt f i
+  match n with
+  | .zero => i.elim0
+  | .succ _ => Truncated.Path.arrow_tgt f i
+
+@[ext]
+lemma ext {f g : Path X n} (hᵥ : f.vertex = g.vertex) (hₐ : f.arrow = g.arrow) :
+    f = g :=
+  match n with
+  | .zero => Truncated.Path.ext₀ hᵥ
+  | .succ _ => Truncated.Path.ext₁ hᵥ hₐ
 
 @[ext]
 lemma ext' {f g : Path X (n + 1)} (h : ∀ i, f.arrow i = g.arrow i) : f = g :=
@@ -380,5 +402,17 @@ end Path
 
 def spine (n : ℕ) : X _[n] → Path X n :=
   truncation n |>.obj X |>.spine n
+
+variable (X : SSet.{u}) (n : ℕ)
+
+@[simp]
+lemma spine_vertex (Δ : X _[n]) (i : Fin (n + 1)) :
+    (X.spine n Δ).vertex i = X.map (const [0] [n] i).op Δ :=
+  truncation n |>.obj X |>.spine_vertex n (by rfl) Δ i
+
+@[simp]
+lemma spine_arrow (Δ : X _[n + 1]) (i : Fin (n + 1)) :
+    (X.spine (n + 1) Δ).arrow i = X.map (mkOfSucc i).op Δ :=
+  rfl
 
 end SSet
