@@ -37,13 +37,6 @@ namespace Path₀
 
 variable {X : SSet.Truncated.{u} 0} {m : ℕ}
 
-/-- A 0-simplex in `X` defines a path of length 0 in `X`. -/
-def of_vertex (Δ : X _[0]₀) :  Path₀ X 0 :=
-  { vertex _ := Δ }
-
-instance : Coe (X _[0]₀) (Path₀ X 0) where
-  coe := Path₀.of_vertex
-
 /-- For `j + l ≤ m`, a path of length `m` in a 0-truncated simplicial set `X`
 restricts to a path of length `l` in `X`, namely the subpath spanned by the
 vertices `j ≤ i ≤ j + l`. -/
@@ -77,9 +70,6 @@ structure Path₁ (X : SSet.Truncated.{u} 1) (m : ℕ)
 namespace Path₁
 
 variable {X : SSet.Truncated.{u} 1} {m : ℕ}
-
-/- instance : Coe (Path₁ X 0) (Path₀ ((trunc 1 0).obj X) 0) where -/
-/-   coe := Path₁.toPath₀ -/
 
 /-- To show two paths equal it suffices to show that they have the same edges. -/
 @[ext]
@@ -213,10 +203,6 @@ def spine (X : SSet.Truncated.{u} n) (m : ℕ) (h : m ≤ n := by omega) (Δ : X
     Path X m :=
   match n with
   | .zero => { vertex i := X.map (tr (const [0] [m] i)).op Δ }
-  /- | .zero => -/
-  /-   match m with -/
-  /-   | .zero => { vertex _ := Δ } -/
-  /-   | .succ m => False.elim <| Nat.not_succ_le_zero m h -/
   | .succ _ => {
       vertex i := X.map (tr (const [0] [m] i)).op Δ
       arrow i := X.map (tr (mkOfSucc i)).op Δ
@@ -238,12 +224,6 @@ lemma spine_vertex (X : SSet.Truncated.{u} n) (m : ℕ) (h : m ≤ n)
     (X.spine m _ Δ).vertex i = X.map (tr (const [0] [m] i)).op Δ :=
   match n with
   | .zero => rfl
-    /- match m with -/
-    /- | .zero => by -/
-    /-   simp [Fin.eq_zero, spine, Path.vertex, tr, spine_vertex] -/
-    /-   erw [CategoryTheory.op_id (X := [0]₀)] -/
-    /-   simp -/
-    /- | .succ m => False.elim <| Nat.not_succ_le_zero m h -/
   | .succ _ => rfl
 
 lemma spine_arrow (X : SSet.Truncated.{u} (n + 1)) (m : ℕ) (h : m ≤ n + 1)
@@ -295,7 +275,7 @@ namespace Path
 variable {X} {n : ℕ}
 
 /-- Constructs a `Path` of length `n` from its vertices and edges. -/
-abbrev mk (vertex : Fin (n + 1) → X _[0]) (arrow : Fin n → X _[1])
+def mk (vertex : Fin (n + 1) → X _[0]) (arrow : Fin n → X _[1])
     (arrow_src : ∀ i : Fin n, X.δ 1 (arrow i) = vertex i.castSucc)
     (arrow_tgt : ∀ i : Fin n, X.δ 0 (arrow i) = vertex i.succ) :
     Path X n :=
@@ -310,18 +290,6 @@ abbrev mk (vertex : Fin (n + 1) → X _[0]) (arrow : Fin n → X _[1])
 instance : Coe (((truncation 1).obj X).Path 0) (Path X 0) where
   coe := Truncated.Path₁.toPath₀
 
-/- instance {m : ℕ} (h : m ≤ n) : CoeOut (((truncation n).obj X).Path m) (Path X m) where -/
-/-   coe f := -/
-/-     match n with -/
-/-     | .zero => -/
-/-       match m with -/
-/-       | .zero => f -/
-/-       | .succ m => False.elim <| Nat.not_succ_le_zero m h -/
-/-     | .succ _ => -/
-/-       match m with -/
-/-       | .zero => f.toPath₀ -/
-/-       | .succ _ => f -/
-
 def vertex (f : Path X n) (i : Fin (n + 1)) : X _[0] :=
   Truncated.Path.vertex f i
 
@@ -335,13 +303,6 @@ lemma mk_vertex (vertex : Fin (n + 1) → X _[0]) (arrow : Fin n → X _[1])
   | .succ _ => rfl
 
 def arrow_rec (motive : ∀ {n : ℕ}, Path X n → Fin n → Sort v)
-    (mk : ∀ {n} f i, motive (n := n + 1) f i)
-    {n : ℕ} (f : Path X n) (i : Fin n) : motive f i :=
-  match n with
-  | .zero => i.elim0
-  | .succ _ => mk f i
-
-def arrow_rec_prop (motive : ∀ {n : ℕ}, Path X n → Fin n → Prop)
     (mk : ∀ {n} f i, motive (n := n + 1) f i)
     {n : ℕ} (f : Path X n) (i : Fin n) : motive f i :=
   match n with
