@@ -328,9 +328,12 @@ theorem spineToSimplex_vertex (f : Path X n) (i : Fin (n + 1)) :
 
 theorem spineToSimplex_arrow (f : Path X n) (i : Fin n) :
     X.map (mkOfSucc i).op (sx.spineToSimplex f) = f.arrow i :=
-  match n with
-  | .zero => i.elim0
-  | .succ n => sx.1 (n + 1) |>.spineToSimplex_arrow f i
+  Path.arrow_rec
+    (fun f i ↦ X.map (mkOfSucc i).op (sx.spineToSimplex f) = f.arrow i)
+    (Truncated.StrictSegal.spineToSimplex_arrow (sx.1 _)) f i
+  /- match n with -/
+  /- | .zero => i.elim0 -/
+  /- | .succ n => sx.1 (n + 1) |>.spineToSimplex_arrow f i -/
 
 /-- In the presence of the strict Segal condition, a path of length `n + 1` can
 be "composed" by taking the diagonal edge of the resulting `n + 1`-simplex. -/
@@ -409,6 +412,8 @@ end SSet
 
 open SSet
 
+/- set_option trace.Meta.Tactic.simp true -/
+/- set_option pp.proofs true in -/
 /-- Simplices in the nerve of categories are uniquely determined by their spine.
 Indeed, this property describes the essential image of the nerve functor.-/
 noncomputable def CategoryTheory.Nerve.strictSegal
@@ -421,9 +426,9 @@ noncomputable def CategoryTheory.Nerve.strictSegal
     (spine_spineToSimplex := fun {n} ↦ by
       ext F i
       refine ComposableArrows.ext₁ ?_ ?_ ?_
-      · exact Functor.congr_obj (F.arrow_src i).symm 0
+      · apply Functor.congr_obj (F.arrow_src i).symm
       · exact Functor.congr_obj (F.arrow_tgt i).symm 0
-      · dsimp
+      · dsimp [spine_arrow']
         apply ComposableArrows.mkOfObjOfMapSucc_map_succ)
     (spineToSimplex_spine := fun {n} ↦ by
       ext F
